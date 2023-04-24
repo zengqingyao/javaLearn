@@ -97,6 +97,8 @@ public class TcpServiceTest {
         InetAddress[] bdAllByName = InetAddress.getAllByName("www.baidu.com");
         for (InetAddress inetAddress : bdAllByName) {
             System.out.println("百度的主机名和IP地址：" + inetAddress);
+            System.out.println(inetAddress.getHostAddress());
+            System.out.println(inetAddress.getHostName());
         }
 
         runTcpService();

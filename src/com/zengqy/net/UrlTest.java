@@ -22,6 +22,7 @@ public class UrlTest {
             System.out.println("getFile: "+url.getFile());
             System.out.println("getQuery: "+url.getQuery());
 
+
         } catch (MalformedURLException e) {
             e.printStackTrace();
         }

@@ -1,6 +1,9 @@
 package com.zengqy.io;
 
 import java.io.*;
+import java.nio.ByteBuffer;
+import java.nio.MappedByteBuffer;
+import java.nio.channels.FileChannel;
 import java.util.Properties;
 
 /**
@@ -26,11 +29,15 @@ public class TestIoStream {
         // 字节流实现文件的拷贝实现，对于非文本文件(.jpg,.mp3,.mp4,.avi,.doc,.ppt)，使用字节流文件
         testFileInputOutputStream();
 
-        // 字符流实现文件的拷贝，对于文本文件（.txt,.java,.c,.cpp），使用字符流处理
-        testFileReaderWriter();
+        // 使用零拷贝方式，效率最高
+        testFileChannel();
 
         // 字节缓冲流 实现文件的拷贝，是处理流(包装流)
         testBufferedStream();
+
+
+        // 字符流实现文件的拷贝，对于文本文件（.txt,.java,.c,.cpp），使用字符流处理
+        testFileReaderWriter();
 
 
         // 把数据或者类进行序列号和反序列化存储
@@ -77,9 +84,7 @@ public class TestIoStream {
 
             long time = System.currentTimeMillis()-start;
             System.out.println("使用 FileInputOutputStream ，字节流 拷贝文件成功，耗时: "+time+"ms");
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
+        }catch (IOException e) {
             e.printStackTrace();
         } finally {
 
@@ -101,6 +106,84 @@ public class TestIoStream {
         }
 
     }
+
+
+    /**
+     * 使用零拷贝方式复制文件，效率最高
+     */
+    public static void testFileChannel(){
+        System.out.println("\n=====================testFileChannel======================");
+
+        File srcFile = new File("src\\com\\zengqy\\io\\dolby_test.ts");
+        File desFile = new File("src\\com\\zengqy\\io\\dolby_test_cpchannel.ts");
+
+        FileInputStream fis = null;
+        FileOutputStream fos= null;
+        try {
+            long start = System.currentTimeMillis();
+
+            fis = new FileInputStream(srcFile);
+            fos = new FileOutputStream(desFile);
+
+            FileChannel srcChannel = fis.getChannel();
+            FileChannel desChannel = fos.getChannel();
+
+            //1. 发送到 desChannel
+            srcChannel.transferTo(0,srcChannel.size(),desChannel);
+
+            //2. desChannel 请求 srcChannel发送，这两种方式都可以
+//            desChannel.transferFrom(srcChannel,0,srcChannel.size());
+
+            long time = System.currentTimeMillis()-start;
+            System.out.println("使用 FileChannel ，零拷贝拷贝文件成功，耗时: "+time+"ms");
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }finally {
+
+            try {
+                fis.close();
+                fos.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+
+        // jdk1.7后，在try()里面的只要实现java.io.Closeable接口的流，会自动关闭
+        // RandomAccessFile 支持channel读写的操作
+        try(RandomAccessFile f = new RandomAccessFile("src\\com\\zengqy\\io\\raf.txt","rw");
+        FileChannel fileChannel = f.getChannel()) {
+
+            fileChannel.write(ByteBuffer.wrap("a这是修改前的b".getBytes()));
+            System.out.println("fileChannel操作后的pos位置："+fileChannel.position());
+            System.out.println("fileChannel操作后的size位置："+fileChannel.size());
+
+            // 从新把pos设置为0
+            fileChannel.position(0);
+
+            ByteBuffer allocate1 = ByteBuffer.allocate((int)fileChannel.size());
+            fileChannel.read(allocate1);
+            allocate1.flip();
+            System.out.println("读取文件内容："+new String(allocate1.array(), 0, allocate1.remaining()));
+
+
+            // 直接
+            //
+            int pos = "a这是修改".getBytes().length;
+            MappedByteBuffer mbb = fileChannel.map(FileChannel.MapMode.READ_WRITE,pos,"后".getBytes().length);
+            mbb.put("后".getBytes());
+            mbb.force();
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+    }
+
+
+
+
 
     /**
      * 字符流拷贝文件
